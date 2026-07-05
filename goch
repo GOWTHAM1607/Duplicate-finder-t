@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Duplicate File & Photo Finder</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background-color: #f9f9f9; color: #333; position: relative; min-height: 100vh; box-sizing: border-box; padding-bottom: 540px; /* Generous bottom spacing to prevent overlapping elements */ }
+        h1 { color: #111; }
+        .control-panel { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .scan-btn { display: inline-block; background: #0070f3; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold; text-align: center; margin-right: 10px; }
+        .scan-btn:hover { background: #0051cb; }
+        .delete-btn { display: inline-block; background: #ff4d4d; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold; text-align: center; }
+        .delete-btn:hover { background: #d43f3f; }
+        .delete-btn:disabled { background: #ccc; cursor: not-allowed; }
+        #status { font-weight: bold; margin-top: 15px; color: #666; }
+        .duplicate-group { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 5px solid #ff4d4d; }
+        .duplicate-group h3 { margin-top: 0; font-size: 14px; color: #888; font-family: monospace; word-break: break-all; }
+        .file-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .file-item:last-child { border-bottom: none; }
+        .file-info { display: flex; align-items: center; gap: 15px; font-size: 14px; }
+        .file-path { font-weight: bold; color: #222; }
+        .file-meta { font-size: 12px; color: #666; }
+        .preview-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; background: #eee; }
+        .keep-badge { background: #2ecc71; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+        .delete-badge { background: #e74c3c; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+        
+        /* High-Utility Video Walkthrough Container Styles */
+        .bottom-video-guide { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); margin-top: 40px; border: 1px solid #e2e8f0; }
+        .bottom-video-guide h3 { margin-top: 0; margin-bottom: 6px; color: #1a202c; font-size: 18px; }
+        .bottom-video-guide p { font-size: 14px; color: #4a5568; margin-bottom: 20px; margin-top: 0; }
+        
+        .video-box { background: #1a202c; color: #fff; border-radius: 6px; padding: 30px; text-align: center; border: 1px dashed #4a5568; }
+        .video-title-card { font-weight: bold; font-size: 16px; color: #e2e8f0; margin-bottom: 15px; }
+        .watch-btn { display: inline-block; background: #ff0000; color: white; text-decoration: none; padding: 12px 28px; font-size: 15px; font-weight: bold; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); transition: background 0.2s, transform 0.1s; }
+        .watch-btn:hover { background: #e60000; transform: translateY(-1px); }
+        .watch-btn:active { transform: translateY(1px); }
+
+        .credit-footer { position: fixed; bottom: 20px; right: 20px; font-size: 12px; color: #888; font-weight: 500; background: rgba(249, 249, 249, 0.8); padding: 4px 8px; border-radius: 4px; pointer-events: none; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <h1>Duplicate File & Photo Finder</h1>
+    <p>Scan local files on your computer. All processing happens 100% locally in your browser.</p>
+
+    <div class="control-panel">
+        <label for="folderInput" class="scan-btn">Select Photos/Files to Scan</label>
+        <button id="deleteDuplicatesBtn" class="delete-btn" disabled>Delete Duplicates</button>
+        <input type="file" id="folderInput" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" style="display: none;" />
+        <div id="status">Ready to scan.</div>
+    </div>
+
+    <h2>Results</h2>
+    <div id="results">No scans performed yet.</div>
+
+    <!-- Integrated Video Walkthrough Section -->
+    <div class="bottom-video-guide">
+        <h3>Application Walkthrough Guide</h3>
+        <p>Learn how to safely find and clear target folder duplication trees on your machine using this presentation setup.</p>
+        
+        <div class="video-box">
+            <div class="video-title-card">🎬 Video: How to use Duplicate File & Photo Finder website</div>
+            <!-- Opens securely directly on YouTube, completely bypassing any offline file network locks -->
+            <a href="https://www.youtube.com/watch?v=Tt_H1Iw9lNk" target="_blank" class="watch-btn">▶ Watch Video Guide on YouTube</a>
+        </div>
+    </div>
+
+    <canvas id="hashCanvas" width="8" height="8" style="display:none;"></canvas>
+
+    <div class="credit-footer">made by GOWTHAM AKA "GOCHUMON"</div>
+
+    <script>
+        const folderInput = document.getElementById('folderInput');
+        const deleteDuplicatesBtn = document.getElementById('deleteDuplicatesBtn');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const canvas = document.getElementById('hashCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let duplicatePathsQueue = []; 
+
+        folderInput.addEventListener('change', async (event) => {
+            const files = event.target.files;
+            if (!files || files.length === 0) {
+                statusDiv.innerText = "No files selected.";
+                return;
+            }
+
+            statusDiv.innerText = `Analyzing ${files.length} files... Please wait.`;
+            resultsDiv.innerHTML = "";
+            duplicatePathsQueue = [];
+            deleteDuplicatesBtn.disabled = true;
+
+            const fileHashes = {};  
+            const photoHashes = {}; 
+            const imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'bmp'];
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const ext = file.name.split('.').pop().toLowerCase();
+                const relativePath = file.webkitRelativePath || file.name;
+
+                statusDiv.innerText = `Processing (${i + 1}/${files.length}): ${file.name}`;
+
+                try {
+                    const cryptoHash = await calculateSHA256(file);
+                    if (cryptoHash) {
+                        if (!fileHashes[cryptoHash]) fileHashes[cryptoHash] = [];
+                        fileHashes[cryptoHash].push({ name: relativePath, size: file.size, fileObject: file });
+                    }
+
+                    if (imageExtensions.includes(ext)) {
+                        const imgHash = await calculateImageAHash(file);
+                        if (imgHash) {
+                            if (!photoHashes[imgHash]) photoHashes[imgHash] = [];
+                            photoHashes[imgHash].push({ name: relativePath, size: file.size, fileObject: file });
+                        }
+                    }
+                } catch (err) {
+                    console.error("Skipped an unreadable file:", file.name, err);
+                }
+            }
+
+            renderResults(fileHashes, photoHashes);
+        });
+
+        deleteDuplicatesBtn.addEventListener('click', () => {
+            if (duplicatePathsQueue.length === 0) return;
+
+            resultsDiv.innerHTML = "<p>🎉 Clean up complete! Duplicate view listings removed.</p>";
+            statusDiv.innerText = "Generating local disk removal file script...";
+
+            const isWindows = navigator.platform.toUpperCase().indexOf('WIN') > -1;
+            let scriptContent = "";
+            let fileName = "";
+
+            if (isWindows) {
+                fileName = "cleanup_duplicates.bat";
+                scriptContent = "@echo off\necho Deleting duplicate files...\n";
+                duplicatePathsQueue.forEach(p => {
+                    const cleanPath = p.includes('/') ? p.substring(p.indexOf('/') + 1).replace(/\//g, '\\') : p;
+                    scriptContent += `del "${cleanPath}"\n`;
+                });
+                scriptContent += "echo Finished! All extra copies removed.\npause";
+            } else {
+                fileName = "cleanup_duplicates.sh";
+                scriptContent = "#!/bin/bash\necho \"Deleting duplicate files...\"\n";
+                duplicatePathsQueue.forEach(p => {
+                    const cleanPath = p.includes('/') ? p.substring(p.indexOf('/') + 1) : p;
+                    scriptContent += `rm "${cleanPath}"\n`;
+                });
+                scriptContent += "echo \"Finished! All extra copies removed.\"";
+            }
+
+            const blob = new Blob([scriptContent], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            statusDiv.innerText = `Cleanup script "${fileName}" downloaded. Place it in your scanned folder and open it to delete the duplicates.`;
+            deleteDuplicatesBtn.disabled = true;
+        });
+
+        async function calculateSHA256(file) {
+            try {
+                const buffer = await file.arrayBuffer();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
